@@ -1,0 +1,68 @@
+# visual-regression-ci — GitLab CI template.
+#
+# Runs on merge requests that touch UI files. Builds both the MR and the target
+# branch, pixel-diffs them, classifies changed screens with GPT-4o, and exposes
+# out/ as an artifact (report + baseline/current/diff images).
+#
+# Required CI/CD variables:
+#   OPENAI_API_KEY  — for the classification step
+#   GITLAB_TOKEN    — (optional) project/personal token to post the MR note
+#
+# Parts marked APP-SPECIFIC are the only ones to adapt (here: Create React App).
+visual-regression:
+  image: mcr.microsoft.com/playwright:v1.60.0-jammy
+  stage: test
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - src/**/*
+        - public/**/*
+  variables:
+    VRT_BASE_URL: "http://localhost:3000"
+    GIT_DEPTH: "0"   # need history to build the target branch
+  script:
+    - npm ci                                   # APP-SPECIFIC: install
+    - npm install --no-save visual-regression-ci serve wait-on
+
+    # --- Capture CURRENT (this MR) ---
+    - npm run build                            # APP-SPECIFIC: build → build/
+    - npx serve -s build -l 3000 & SERVER_PID=$!
+    - npx wait-on "$VRT_BASE_URL"
+    - npx vrt capture current
+    - kill $SERVER_PID
+
+    # --- Capture BASELINE (target branch) ---
+    - git fetch origin "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+    - git worktree add /tmp/base "origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+    - (cd /tmp/base && npm ci && npm run build && npx serve -s build -l 3000 & ) # APP-SPECIFIC
+    - npx wait-on "$VRT_BASE_URL"
+    - npx vrt capture baseline
+    - pkill -f "serve -s build" || true
+
+    # --- Diff + classify + report ---
+    - npx vrt diff
+    - npx vrt classify
+    - npx vrt report
+    - cat out/report.md
+
+    # --- Optional: post the report as an MR note (text + verdicts) ---
+    # Inline images need the artifact for private repos, so the note links to it.
+    - |
+      if [ -n "$GITLAB_TOKEN" ] && [ -n "$CI_MERGE_REQUEST_IID" ]; then
+        BODY=$(cat out/report.md)
+        BODY="${BODY}
+
+      [Download diff images](${CI_JOB_URL}/artifacts/browse/out)"
+        jq -nc --arg body "$BODY" '{body: $body}' \
+          | curl -sf -X POST \
+              -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data-binary @- \
+              "$CI_API_V4_URL/projects/$CI_PROJECT_ID/merge_requests/$CI_MERGE_REQUEST_IID/notes" \
+          && echo "Posted MR note." || echo "Failed to post MR note (check GITLAB_TOKEN)."
+      fi
+  artifacts:
+    when: always
+    paths:
+      - out/
+    expire_in: 1 week

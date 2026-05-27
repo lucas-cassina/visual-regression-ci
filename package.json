@@ -1,0 +1,41 @@
+{
+  "name": "visual-regression-ci",
+  "version": "0.1.0",
+  "description": "Visual regression detection for CI: Playwright screenshots + pixel diff + GPT-4o classification, with PR comments.",
+  "type": "module",
+  "bin": {
+    "vrt": "./src/cli.ts"
+  },
+  "scripts": {
+    "capture": "tsx src/capture.ts",
+    "diff": "tsx src/diff.ts",
+    "classify": "tsx src/classify.ts",
+    "report": "tsx src/report.ts",
+    "comment": "tsx src/comment.ts",
+    "vrt": "tsx src/cli.ts",
+    "demo": "tsx src/demo.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "visual-regression",
+    "playwright",
+    "ci",
+    "screenshot-testing",
+    "github-actions",
+    "gpt-4o"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "openai": "^4.67.0",
+    "pixelmatch": "^6.0.0",
+    "playwright": "^1.48.0",
+    "pngjs": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.0",
+    "@types/pixelmatch": "^5.2.6",
+    "@types/pngjs": "^6.0.5",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

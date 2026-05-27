@@ -1,0 +1,8 @@
+node_modules/
+out/
+*.log
+.env
+.DS_Store
+vrt.config.js
+# Internal, app-specific config kept out of the public repo:
+examples/polko.vrt.config.js

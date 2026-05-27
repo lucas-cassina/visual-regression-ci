@@ -1,0 +1,134 @@
+# Visual Regression CI — example workflow.
+#
+# Drop this into the repo of the app you want to guard. It captures the PR and
+# `main` in the same job (no external baseline storage), pixel-diffs them, asks
+# a vision model to classify each changed screen, and leaves a sticky PR comment
+# with the visual diffs.
+#
+# Parts marked "APP-SPECIFIC" are the only things you need to adapt.
+name: Visual Regression
+
+on:
+  pull_request:
+    # Only run when UI-ish files change. (GitHub path filters don't support {brace} globs.)
+    paths:
+      - 'src/**/*.js'
+      - 'src/**/*.jsx'
+      - 'src/**/*.ts'
+      - 'src/**/*.tsx'
+      - 'src/**/*.vue'
+      - 'src/**/*.svelte'
+      - 'src/**/*.css'
+      - 'src/**/*.scss'
+      - 'src/**/*.sass'
+      - 'src/**/*.less'
+      - 'public/**'
+
+permissions:
+  contents: write        # push diff images to the vrt-results branch
+  pull-requests: write   # post the comment
+
+concurrency:
+  group: vrt-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  visual-regression:
+    runs-on: ubuntu-latest
+    env:
+      VRT_BASE_URL: http://localhost:3000
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # needed to build `main` too
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # --- Install the app and the VRT tool ---------------------------------
+      - name: Install dependencies
+        run: npm ci   # APP-SPECIFIC: your app's install
+
+      - name: Install visual-regression-ci
+        run: npm install --no-save visual-regression-ci serve wait-on
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      # --- Capture CURRENT (this PR) ----------------------------------------
+      - name: Build & serve PR, capture current
+        run: |
+          npm run build                              # APP-SPECIFIC: build command
+          npx serve -s build -l 3000 &               # APP-SPECIFIC: serve dir
+          npx wait-on $VRT_BASE_URL
+          npx vrt capture current
+          kill %1
+
+      # --- Capture BASELINE (main) ------------------------------------------
+      - name: Build & serve main, capture baseline
+        run: |
+          git worktree add /tmp/main origin/${{ github.event.pull_request.base.ref }}
+          cd /tmp/main
+          npm ci                                     # APP-SPECIFIC
+          npm run build                              # APP-SPECIFIC
+          npx serve -s build -l 3000 &               # APP-SPECIFIC
+          npx wait-on $VRT_BASE_URL
+          cd -
+          # capture from the PR checkout so out/ lands here
+          npx vrt capture baseline
+          kill %1
+
+      # --- Diff + classify ---------------------------------------------------
+      - name: Pixel diff
+        run: npx vrt diff
+
+      - name: Classify changed screens (GPT-4o)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: npx vrt classify
+
+      # --- Publish diff images so they render inside the PR comment ----------
+      - name: Push result images
+        id: images
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SHA="${{ github.event.pull_request.head.sha }}"
+          DEST="results/${SHA}"
+          REPO="${{ github.repository }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin vrt-results || true
+          if git show-ref --verify --quiet refs/remotes/origin/vrt-results; then
+            git worktree add /tmp/results vrt-results
+          else
+            git worktree add --orphan -b vrt-results /tmp/results
+          fi
+          mkdir -p "/tmp/results/${DEST}"
+          cp -r out/baseline out/current out/diff "/tmp/results/${DEST}/" 2>/dev/null || true
+          cd /tmp/results
+          git add -A
+          git commit -m "vrt results for ${SHA}" || echo "nothing to commit"
+          git push origin vrt-results
+          cd -
+          echo "base_url=https://raw.githubusercontent.com/${REPO}/vrt-results/${DEST}" >> "$GITHUB_OUTPUT"
+
+      # --- Report + comment --------------------------------------------------
+      - name: Build report
+        env:
+          VRT_IMAGE_BASE_URL: ${{ steps.images.outputs.base_url }}
+        run: npx vrt report
+
+      - name: Comment on PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx vrt comment
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-regression
+          path: out/
