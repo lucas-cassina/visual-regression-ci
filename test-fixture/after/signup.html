@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign up</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; color: #1a1a1a; }
+  header { background: #0f172a; color: #fff; padding: 24px 32px; }
+  .wrap { padding: 48px 32px; max-width: 480px; }
+  h1 { font-size: 32px; margin: 0 0 24px; }
+  label { display: block; font-size: 14px; color: #475569; margin: 16px 0 6px; }
+  input { display: block; width: 100%; box-sizing: border-box; padding: 12px;
+          border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; background: #fff; }
+  .signup-btn { display: block; width: 100%; margin-top: 24px; background: #2563eb;
+                color: #fff; padding: 14px 28px; border-radius: 8px; border: 0;
+                font-weight: 600; font-size: 16px; cursor: pointer; }
+  /* REGRESSION (mobile-only): a responsive tweak that hides the CTA on narrow
+     viewports. Desktop is unaffected — looks completely fine in code review. */
+  @media (max-width: 600px) {
+    .signup-btn { display: none; }
+  }
+</style>
+</head>
+<body>
+  <header>Acme Insurance</header>
+  <section class="wrap">
+    <h1>Create your account</h1>
+    <label for="email">Email</label>
+    <input id="email" type="email" value="you@example.com" readonly>
+    <label for="password">Password</label>
+    <input id="password" type="password" value="hunter2" readonly>
+    <button class="signup-btn">Sign up</button>
+  </section>
+</body>
+</html>

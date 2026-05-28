@@ -56,8 +56,16 @@ commands are available as `npx vrt <command>`.
 
 ### Try the built-in demo
 
-The repo ships a tiny fixture with two states — a layout regression and a low-contrast
-regression — so you can see a report without wiring up an app:
+The repo ships a fixture with two states — a "before" and an "after" — that covers four
+categories of regression you can see reflected in the report:
+
+- **Layout** (`home`): a button changes to `position: absolute` and ends up overlapping the heading.
+- **Contrast** (`pricing`): the price is recolored to light grey on white — unreadable.
+- **Mobile-only** (`signup`): a `@media (max-width: 600px)` rule hides the CTA on narrow viewports. Desktop is unaffected, mobile breaks silently.
+- **Clipped content** (`news`): the copy gets longer but the card still has fixed height and `overflow: hidden`, so the call-to-action disappears.
+
+A fifth screen (`about`) is identical between both states — the control, to show the tool
+doesn't flag pages that haven't actually changed.
 
 ```bash
 npm run demo

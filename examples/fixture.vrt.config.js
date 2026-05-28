@@ -4,6 +4,8 @@ export default {
   routes: [
     { name: 'home', path: '/' },
     { name: 'pricing', path: '/pricing.html' },
+    { name: 'signup', path: '/signup.html' },
+    { name: 'news', path: '/news.html' },
     { name: 'about', path: '/about.html' },
   ],
   viewports: [
