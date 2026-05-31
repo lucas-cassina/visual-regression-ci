@@ -26,23 +26,6 @@ export interface ClassifyConfig {
   enabled: boolean;
   provider: 'openai';
   model: string;
-  /** Image fidelity passed to the vision model. 'auto' is the best cost/quality default. */
-  detail: 'auto' | 'low' | 'high';
-  /** Max parallel classification requests. */
-  concurrency: number;
-}
-
-export interface ComponentsConfig {
-  /** Whether components analysis is enabled in the config (does not block CLI commands). */
-  enabled: boolean;
-  /** Directory to scan for .tsx files, relative to cwd. */
-  srcDir: string;
-  /** Cosine similarity threshold above which two components are flagged (0..1). */
-  threshold: number;
-  /** Embedding model passed to the OpenAI embeddings API. */
-  model: string;
-  /** Max parallel embedding requests. */
-  concurrency: number;
 }
 
 export interface VrtConfig {
@@ -59,13 +42,11 @@ export interface VrtConfig {
   /** Output directory for screenshots, diffs and reports. */
   outDir: string;
   classify: ClassifyConfig;
-  components: ComponentsConfig;
 }
 
-export type UserVrtConfig = Partial<Omit<VrtConfig, 'classify' | 'components'>> &
+export type UserVrtConfig = Partial<Omit<VrtConfig, 'classify'>> &
   Pick<VrtConfig, 'baseUrl' | 'routes' | 'viewports'> & {
     classify?: Partial<ClassifyConfig>;
-    components?: Partial<ComponentsConfig>;
   };
 
 const DEFAULTS = {
@@ -73,20 +54,7 @@ const DEFAULTS = {
   threshold: 0.1,
   diffRatioThreshold: 0.001,
   outDir: 'out',
-  classify: {
-    enabled: true,
-    provider: 'openai' as const,
-    model: 'gpt-4o',
-    detail: 'auto' as const,
-    concurrency: 4,
-  },
-  components: {
-    enabled: false,
-    srcDir: 'src/components',
-    threshold: 0.85,
-    model: 'text-embedding-3-small',
-    concurrency: 8,
-  },
+  classify: { enabled: true, provider: 'openai' as const, model: 'gpt-4o' },
 };
 
 const CONFIG_CANDIDATES = [
@@ -122,27 +90,6 @@ export async function loadConfig(explicit?: string): Promise<VrtConfig> {
   if (!user.routes?.length) throw new Error('VRT config: "routes" must be a non-empty array.');
   if (!user.viewports?.length) throw new Error('VRT config: "viewports" must be a non-empty array.');
 
-  const routeNames = new Set<string>();
-  for (const r of user.routes) {
-    if (!r?.name || !r?.path) {
-      throw new Error(`VRT config: each route needs "name" and "path" — got ${JSON.stringify(r)}`);
-    }
-    if (routeNames.has(r.name)) {
-      throw new Error(`VRT config: duplicate route name "${r.name}" — names must be unique.`);
-    }
-    routeNames.add(r.name);
-  }
-  const viewportNames = new Set<string>();
-  for (const v of user.viewports) {
-    if (!v?.name || !v?.width || !v?.height) {
-      throw new Error(`VRT config: each viewport needs "name", "width", "height" — got ${JSON.stringify(v)}`);
-    }
-    if (viewportNames.has(v.name)) {
-      throw new Error(`VRT config: duplicate viewport name "${v.name}" — names must be unique.`);
-    }
-    viewportNames.add(v.name);
-  }
-
   return {
     baseUrl: user.baseUrl.replace(/\/$/, ''),
     routes: user.routes,
@@ -152,7 +99,6 @@ export async function loadConfig(explicit?: string): Promise<VrtConfig> {
     diffRatioThreshold: user.diffRatioThreshold ?? DEFAULTS.diffRatioThreshold,
     outDir: user.outDir ?? DEFAULTS.outDir,
     classify: { ...DEFAULTS.classify, ...user.classify },
-    components: { ...DEFAULTS.components, ...user.components },
   };
 }
 

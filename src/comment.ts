@@ -1,8 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { loadConfig } from './config.js';
-import { COMMENT_MARKER } from './report.js';
+import { loadConfig } from './config.ts';
+import { COMMENT_MARKER } from './report.ts';
 
 const API = process.env.GITHUB_API_URL ?? 'https://api.github.com';
 
@@ -20,24 +19,10 @@ function resolvePrNumber(): number | undefined {
   return undefined;
 }
 
-interface GhResponse<T> {
-  data: T;
-  nextUrl?: string;
-}
-
-function parseNextLink(link: string | null): string | undefined {
-  if (!link) return undefined;
-  for (const part of link.split(',')) {
-    const m = part.match(/<([^>]+)>;\s*rel="next"/);
-    if (m) return m[1];
-  }
-  return undefined;
-}
-
-async function ghRequest<T>(url: string, init?: RequestInit): Promise<GhResponse<T>> {
+async function gh<T>(path: string, init?: RequestInit): Promise<T> {
   const token = process.env.GITHUB_TOKEN;
   if (!token) throw new Error('GITHUB_TOKEN is required to post PR comments.');
-  const res = await fetch(url, {
+  const res = await fetch(`${API}${path}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -48,38 +33,15 @@ async function ghRequest<T>(url: string, init?: RequestInit): Promise<GhResponse
     },
   });
   if (!res.ok) {
-    throw new Error(`GitHub API ${res.status} ${res.statusText} for ${url}: ${await res.text()}`);
+    throw new Error(`GitHub API ${res.status} ${res.statusText} for ${path}: ${await res.text()}`);
   }
-  const data = (res.status === 204 ? undefined : await res.json()) as T;
-  return { data, nextUrl: parseNextLink(res.headers.get('link')) };
+  return (res.status === 204 ? undefined : await res.json()) as T;
 }
 
-async function gh<T>(path: string, init?: RequestInit): Promise<T> {
-  const { data } = await ghRequest<T>(`${API}${path}`, init);
-  return data;
-}
-
-async function findStickyComment(repo: string, prNumber: number, marker: string): Promise<GhComment | undefined> {
-  let url: string | undefined = `${API}/repos/${repo}/issues/${prNumber}/comments?per_page=100`;
-  while (url) {
-    const res: GhResponse<GhComment[]> = await ghRequest<GhComment[]>(url);
-    const hit = res.data.find((c) => c.body?.includes(marker));
-    if (hit) return hit;
-    url = res.nextUrl;
-  }
-  return undefined;
-}
-
-interface StickyCommentOptions {
-  configPath?: string;
-  marker: string;
-  reportFile: string;
-}
-
-export async function postStickyComment(opts: StickyCommentOptions): Promise<void> {
-  const config = await loadConfig(opts.configPath);
+export async function comment(configPath?: string): Promise<void> {
+  const config = await loadConfig(configPath);
   const outDir = resolve(process.cwd(), config.outDir);
-  const body = await readFile(join(outDir, opts.reportFile), 'utf8');
+  const body = await readFile(join(outDir, 'report.md'), 'utf8');
 
   const repo = process.env.GITHUB_REPOSITORY;
   const prNumber = resolvePrNumber();
@@ -89,7 +51,8 @@ export async function postStickyComment(opts: StickyCommentOptions): Promise<voi
     return;
   }
 
-  const mine = await findStickyComment(repo, prNumber, opts.marker);
+  const existing = await gh<GhComment[]>(`/repos/${repo}/issues/${prNumber}/comments?per_page=100`);
+  const mine = existing.find((c) => c.body?.includes(COMMENT_MARKER));
 
   if (mine) {
     await gh(`/repos/${repo}/issues/comments/${mine.id}`, { method: 'PATCH', body: JSON.stringify({ body }) });
@@ -100,11 +63,7 @@ export async function postStickyComment(opts: StickyCommentOptions): Promise<voi
   }
 }
 
-export async function comment(configPath?: string): Promise<void> {
-  await postStickyComment({ configPath, marker: COMMENT_MARKER, reportFile: 'report.md' });
-}
-
-const isMain = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false;
+const isMain = import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
   comment().catch((err) => {
     console.error(err);

@@ -4,24 +4,9 @@
   "description": "Visual regression detection for CI: Playwright screenshots + pixel diff + GPT-4o classification, with PR comments.",
   "type": "module",
   "bin": {
-    "vrt": "./dist/cli.js"
-  },
-  "files": [
-    "dist",
-    "examples/cra.vrt.config.js",
-    "examples/fixture.vrt.config.js",
-    "examples/gitlab-ci.yml",
-    "vrt.config.example.js",
-    "README.md",
-    "LICENSE"
-  ],
-  "engines": {
-    "node": ">=20"
+    "vrt": "./src/cli.ts"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && chmod +x dist/cli.js",
-    "clean": "rm -rf dist",
-    "prepack": "npm run clean && npm run build",
     "capture": "tsx src/capture.ts",
     "diff": "tsx src/diff.ts",
     "classify": "tsx src/classify.ts",
@@ -42,13 +27,13 @@
   "license": "MIT",
   "dependencies": {
     "openai": "^4.67.0",
-    "pixelmatch": "^7.2.0",
+    "pixelmatch": "^6.0.0",
     "playwright": "^1.48.0",
-    "pngjs": "^7.0.0",
-    "ts-morph": "^23.0.0"
+    "pngjs": "^7.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.16.0",
+    "@types/pixelmatch": "^5.2.6",
     "@types/pngjs": "^6.0.5",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"

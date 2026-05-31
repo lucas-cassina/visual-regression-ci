@@ -10,8 +10,7 @@ name: Visual Regression
 
 on:
   pull_request:
-    # APP-SPECIFIC: adjust paths to match where your UI source lives.
-    # (GitHub path filters don't support {brace} globs.)
+    # Only run when UI-ish files change. (GitHub path filters don't support {brace} globs.)
     paths:
       - 'src/**/*.js'
       - 'src/**/*.jsx'
@@ -30,7 +29,7 @@ permissions:
   pull-requests: write   # post the comment
 
 concurrency:
-  group: vrt-${{ github.event.pull_request.number || github.ref }}
+  group: vrt-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
@@ -64,10 +63,9 @@ jobs:
         run: |
           npm run build                              # APP-SPECIFIC: build command
           npx serve -s build -l 3000 &               # APP-SPECIFIC: serve dir
-          SERVER_PID=$!
-          npx wait-on "$VRT_BASE_URL"
+          npx wait-on $VRT_BASE_URL
           npx vrt capture current
-          kill "$SERVER_PID"
+          kill %1
 
       # --- Capture BASELINE (main) ------------------------------------------
       - name: Build & serve main, capture baseline
@@ -77,12 +75,11 @@ jobs:
           npm ci                                     # APP-SPECIFIC
           npm run build                              # APP-SPECIFIC
           npx serve -s build -l 3000 &               # APP-SPECIFIC
-          SERVER_PID=$!
+          npx wait-on $VRT_BASE_URL
           cd -
-          npx wait-on "$VRT_BASE_URL"
           # capture from the PR checkout so out/ lands here
           npx vrt capture baseline
-          kill "$SERVER_PID"
+          kill %1
 
       # --- Diff + classify ---------------------------------------------------
       - name: Pixel diff
@@ -123,35 +120,12 @@ jobs:
       - name: Build report
         env:
           VRT_IMAGE_BASE_URL: ${{ steps.images.outputs.base_url }}
-          # Set VRT_FAIL_ON_BUG=true to fail the job (block merge) on likely bugs.
-          VRT_FAIL_ON_BUG: 'false'
         run: npx vrt report
 
       - name: Comment on PR
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx vrt comment
-
-      # --- Component similarity (optional — requires components block in vrt.config.js) ---
-      # Restore the embedding cache: exact hit restores all embeddings, prefix hit
-      # restores a partial cache and embed.ts only re-calls the API for changed files.
-      - name: Restore embedding cache
-        uses: actions/cache@v4
-        with:
-          path: out/components-embeddings.json
-          # APP-SPECIFIC: adjust the glob to match your components directory.
-          key: vrt-embed-${{ hashFiles('src/components/**/*.tsx') }}
-          restore-keys: vrt-embed-
-
-      - name: Component similarity analysis
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: npx vrt components analyze
-
-      - name: Comment component similarity
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx vrt components comment
 
       - uses: actions/upload-artifact@v4
         if: always()

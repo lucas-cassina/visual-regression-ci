@@ -37,20 +37,5 @@ export default {
     enabled: true,
     provider: 'openai',
     model: 'gpt-4o',
-    // Image fidelity sent to the vision model. 'auto' is cheapest sensible default;
-    // bump to 'high' if you see the model missing subtle regressions.
-    detail: 'auto',
-    // Max parallel classification requests.
-    concurrency: 4,
   },
-
-  // Component similarity analysis — detects near-duplicate React components.
-  // Run with: vrt components analyze && vrt components comment
-  // components: {
-  //   enabled: true,
-  //   srcDir: 'src/components',   // directory to scan for .tsx files (recursive)
-  //   threshold: 0.85,            // cosine similarity score above which two components are flagged
-  //   model: 'text-embedding-3-small',
-  //   concurrency: 8,
-  // },
 };
