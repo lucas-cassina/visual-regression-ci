@@ -1,9 +1,10 @@
-#!/usr/bin/env -S npx tsx
-import { capture } from './capture.ts';
-import { diff } from './diff.ts';
-import { classify } from './classify.ts';
-import { report } from './report.ts';
-import { comment } from './comment.ts';
+#!/usr/bin/env node
+import { capture } from './capture.js';
+import { diff } from './diff.js';
+import { classify } from './classify.js';
+import { report } from './report.js';
+import { comment } from './comment.js';
+import { componentsMain } from './components/cli.js';
 
 const HELP = `visual-regression-ci
 
@@ -16,8 +17,16 @@ Commands:
   report            Build the markdown report (out/report.md)
   comment           Upsert the report as a sticky PR comment
   analyze           diff + classify + report (no capture, no comment)
+  components        Component similarity analysis (see: vrt components help)
 
 Config is read from vrt.config.js (or $VRT_CONFIG). See vrt.config.example.js.`;
+
+function failOnBugIfRequested(summary: { bugs: number }): void {
+  if (process.env.VRT_FAIL_ON_BUG === 'true' && summary.bugs > 0) {
+    console.error(`Exiting non-zero: ${summary.bugs} likely bug(s) detected (VRT_FAIL_ON_BUG=true).`);
+    process.exit(1);
+  }
+}
 
 async function main(): Promise<void> {
   const [cmd, arg] = process.argv.slice(2);
@@ -32,7 +41,7 @@ async function main(): Promise<void> {
       await classify();
       break;
     case 'report':
-      await report();
+      failOnBugIfRequested(await report());
       break;
     case 'comment':
       await comment();
@@ -40,7 +49,10 @@ async function main(): Promise<void> {
     case 'analyze':
       await diff();
       await classify();
-      await report();
+      failOnBugIfRequested(await report());
+      break;
+    case 'components':
+      await componentsMain();
       break;
     case 'help':
     case undefined:
